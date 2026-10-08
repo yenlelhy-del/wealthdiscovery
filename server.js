@@ -3,6 +3,7 @@ const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
+const {adminRoute}=require('./admin');
 const PORT=Number(process.env.PORT||3101);
 const DATA_DIR=process.env.DATA_DIR||'/var/lib/finpeace-wealth-discovery';
 const BASE='/wealth-discovery/';
@@ -15,6 +16,7 @@ async function app(req,res){
   res.setHeader('X-Frame-Options','DENY');
   res.setHeader('X-Content-Type-Options','nosniff');
   const url=new URL(req.url,'http://localhost');
+  if(await adminRoute(req,res,url))return;
   if(req.method==='GET'&&url.pathname===BASE+'health')return json(res,200,{ok:true});
   if(req.method==='POST'&&url.pathname===BASE+'api/submit'){
     if(req.headers.origin&&!['https://finpeace.cloud','https://www.finpeace.cloud'].includes(req.headers.origin))return error(res,403,'Origin không hợp lệ');
