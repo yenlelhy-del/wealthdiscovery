@@ -37,7 +37,7 @@ async function app(req,res){
     return json(res,201,{ok:true,reference:id});
   }
   if(!['GET','HEAD'].includes(req.method))return error(res,405,'Method không hỗ trợ');
-  const allowed={'/wealth-discovery/':['index.html','text/html; charset=utf-8'],'/wealth-discovery/index.html':['index.html','text/html; charset=utf-8'],'/wealth-discovery/finpeace-logo.png':['finpeace-logo.png','image/png']};
+  const allowed={'/wealth-discovery/':['index.html','text/html; charset=utf-8'],'/wealth-discovery/index.html':['index.html','text/html; charset=utf-8'],'/wealth-discovery/logo-green.png':['logo-green.png','image/png']};
   if(!allowed[url.pathname])return error(res,404,'Không tìm thấy trang');
   const [file,type]=allowed[url.pathname];
   try{const content=await fs.readFile(path.join(root,file));res.writeHead(200,{'Content-Type':type,'Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'"});res.end(req.method==='HEAD'?undefined:content);}
