@@ -1,0 +1,22 @@
+[Unit]
+Description=FinPeace Wealth Discovery KYC
+After=network.target
+
+[Service]
+Type=simple
+User=finpeace-kyc
+Group=finpeace-kyc
+WorkingDirectory=/opt/finpeace-wealth-discovery
+Environment=PORT=3101
+Environment=DATA_DIR=/var/lib/finpeace-wealth-discovery
+ExecStart=/usr/bin/node /opt/finpeace-wealth-discovery/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/finpeace-wealth-discovery
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
