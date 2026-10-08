@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+*.jsonl
+data/
+submissions/
+*.pem
+*.key
+.DS_Store
