@@ -16,5 +16,6 @@ jobs:
         run: |
           node --check server.js
           node --check admin.js
+          node --check email-auth.js
       - name: Functional security tests
         run: node --test test/dashboard.test.js
