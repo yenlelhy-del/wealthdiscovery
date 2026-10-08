@@ -1,7 +1,7 @@
 name: Dashboard checks
 on:
   push:
-    branches: [feature/coach-dashboard]
+    branches: [feature/coach-dashboard, feature/email-admin-auth]
   pull_request:
     branches: [main]
 jobs:
