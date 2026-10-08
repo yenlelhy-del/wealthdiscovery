@@ -1,0 +1,21 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),http=require('node:http'),{spawn}=require('node:child_process');
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fp-dashboard-test-'));fs.chmodSync(dir,0o700);
+const port=34000+Math.floor(Math.random()*2000),password='TestPassword-Only-NotProduction!',salt=crypto.randomBytes(16);
+const hash='scrypt:'+salt.toString('hex')+':'+crypto.scryptSync(password,salt,64).toString('hex');
+const recordId='FP-TEST123-ABCDEF1234';
+fs.writeFileSync(path.join(dir,recordId+'.json'),JSON.stringify({id:recordId,submittedAt:new Date().toISOString(),answers:{name:'Synthetic Customer',email:'test@example.invalid',goals:['Test goal']}}),{mode:0o600});
+const child=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,ADMIN_USERNAME:'admin',ADMIN_PASSWORD_SCRYPT:hash,ADMIN_SESSION_SECRET:crypto.randomBytes(32).toString('hex')},stdio:'ignore'});
+const base='http://127.0.0.1:'+port;
+async function fetchUntilReady(){for(let i=0;i<80;i++){try{const r=await fetch(base+'/wealth-discovery/health');if(r.ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('Server not ready');}
+test('single-admin dashboard security and notes workflow',async()=>{try{await fetchUntilReady();
+ let r=await fetch(base+'/wealth-discovery/admin/api/records');assert.equal(r.status,401);
+ r=await fetch(base+'/wealth-discovery/admin/');assert.equal(r.status,200);
+ r=await fetch(base+'/wealth-discovery/admin/api/login',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://finpeace.cloud'},body:JSON.stringify({username:'admin',password:'wrong'})});assert.equal(r.status,401);
+ r=await fetch(base+'/wealth-discovery/admin/api/login',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://finpeace.cloud'},body:JSON.stringify({username:'admin',password})});assert.equal(r.status,200);const cookie=r.headers.get('set-cookie').split(';')[0],body=await r.json();assert.ok(body.csrf);
+ r=await fetch(base+'/wealth-discovery/admin/api/records',{headers:{Cookie:cookie}});assert.equal(r.status,200);assert.equal((await r.json()).records[0].name,'Synthetic Customer');
+ r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({status:'reviewed',notes:'Test'})});assert.equal(r.status,403);
+ r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json','X-CSRF-Token':body.csrf,Origin:'https://finpeace.cloud'},body:JSON.stringify({status:'reviewed',notes:'Test'})});assert.equal(r.status,200);
+ r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{headers:{Cookie:cookie}});assert.equal((await r.json()).review.status,'reviewed');
+ console.log('PASS: unauthorized access blocked; login; list/detail; CSRF blocked; notes saved.');
+}finally{child.kill('SIGTERM');fs.rmSync(dir,{recursive:true,force:true});}});
