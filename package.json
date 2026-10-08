@@ -1,0 +1,12 @@
+{
+  "name": "finpeace-wealth-discovery",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FinPeace Wealth Discovery pre-meeting KYC",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
