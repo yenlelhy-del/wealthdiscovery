@@ -9,6 +9,7 @@ Group=finpeace-kyc
 WorkingDirectory=/opt/finpeace-wealth-discovery/app
 Environment=PORT=3101
 Environment=DATA_DIR=/var/lib/finpeace-wealth-discovery
+EnvironmentFile=-/etc/finpeace-wealth-discovery/admin.env
 ExecStart=/usr/bin/node /opt/finpeace-wealth-discovery/app/server.js
 Restart=on-failure
 RestartSec=5
