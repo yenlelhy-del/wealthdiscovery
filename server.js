@@ -4,6 +4,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {adminRoute}=require('./admin');
+const {sendReceipt}=require('./kyc-email');
 const PORT=Number(process.env.PORT||3101);
 const DATA_DIR=process.env.DATA_DIR||'/var/lib/finpeace-wealth-discovery';
 const BASE='/wealth-discovery/';
@@ -29,14 +30,16 @@ async function app(req,res){
     for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>24576)return error(res,413,'Dữ liệu quá lớn');}
     let d;try{d=JSON.parse(raw);}catch{return error(res,400,'JSON không hợp lệ');}
     if(!d||typeof d!=='object'||Array.isArray(d)||d.consent!==true||typeof d.name!=='string'||d.name.trim().length<2||d.name.length>120||typeof d.email!=='string'||d.email.length>254||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email))return error(res,400,'Thiếu thông tin bắt buộc');
-    const allowed=new Set(['name','email','phone','age','occupation','company','role','stage','trigger','scope','income','networth','savings','holdings','planning','goals','concerns','clarity','expectations','notes','consent','website']);
+    const allowed=new Set(['name','email','phone','age','occupation','company','role','stage','trigger','scope','income','networth','savings','holdings','planning','goals','concerns','clarity','expectations','notes','consent','emailReceipt','website']);
     if(d.website)return error(res,400,'Yêu cầu không hợp lệ');
     for(const [k,v] of Object.entries(d)){if(!allowed.has(k))return error(res,400,'Trường dữ liệu không hợp lệ');if(Array.isArray(v)){if(v.length>15||!v.every(x=>typeof x==='string'&&x.length<250))return error(res,400,'Dữ liệu không hợp lệ');}else if(typeof v!=='string'&&typeof v!=='boolean')return error(res,400,'Dữ liệu không hợp lệ');else if(typeof v==='string'&&v.length>2200)return error(res,400,'Trường quá dài');}
     if((d.goals||[]).length>3||(d.concerns||[]).length>2||(d.expectations||[]).length>2)return error(res,400,'Quá số lựa chọn');
     const id='FP-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(5).toString('hex').toUpperCase();
     try{await fs.writeFile(path.join(DATA_DIR,id+'.json'),JSON.stringify({id,submittedAt:new Date().toISOString(),answers:d},null,2),{flag:'wx',mode:0o600});}
     catch(e){console.error('KYC storage error:',e.code);return error(res,500,'Chưa thể lưu hồ sơ');}
-    return json(res,201,{ok:true,reference:id});
+    let emailStatus='not-requested';
+    if(d.emailReceipt===true){try{emailStatus=(await sendReceipt(d,id)).status;}catch(e){emailStatus='failed';console.error('KYC email send error:',e.message);}}
+    return json(res,201,{ok:true,reference:id,emailStatus});
   }
   if(!['GET','HEAD'].includes(req.method))return error(res,405,'Method không hỗ trợ');
   const allowed={'/wealth-discovery/':['index.html','text/html; charset=utf-8'],'/wealth-discovery/index.html':['index.html','text/html; charset=utf-8'],'/wealth-discovery/logo-green.png':['logo-green.png','image/png']};
