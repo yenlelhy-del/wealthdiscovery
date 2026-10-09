@@ -22,6 +22,11 @@ test('setup link, email login, protected data, CSRF and password change',async()
  let res=await post('/login',{email:'yenle.lhy@gmail.com',password});assert.equal(res.status,200);
  const session=await res.json(),cookie=res.headers.get('set-cookie').split(';')[0];
  assert.equal((await fetch(base+'/records',{headers:{Cookie:cookie}})).status,200);
+ const detail=await fetch(base+'/records/'+id,{headers:{Cookie:cookie}});
+ assert.equal(detail.status,200,'client profile must load');
+ assert.equal((await detail.json()).record.answers.name,'TEST ONLY');
+ const save=await fetch(base+'/records/'+id,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json','X-CSRF-Token':session.csrf},body:JSON.stringify({status:'reviewed',notes:'Synthetic coach note'})});
+ assert.equal(save.status,200,'coach notes must save');
  assert.equal((await post('/change-password',{currentPassword:password,newPassword:'A_New_Strong_Password_2026'}, {Cookie:cookie})).status,403);
  assert.equal((await post('/change-password',{currentPassword:password,newPassword:'A_New_Strong_Password_2026'}, {Cookie:cookie,'X-CSRF-Token':session.csrf})).status,200);
  assert.equal((await fetch(base+'/records',{headers:{Cookie:cookie}})).status,401);
