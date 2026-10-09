@@ -11,6 +11,7 @@ function deny(res,status=401){response(res,status,{ok:false,error:status===401?'
 async function readJSON(req,max=8192){let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>max)throw new Error('Payload too large');}return JSON.parse(body);}
 async function readRecord(id){if(!idOk(id))return null;try{const data=await fs.readFile(path.join(dataDir,id+'.json'),'utf8');return JSON.parse(data);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
 async function getNotes(id){try{return JSON.parse(await fs.readFile(path.join(dataDir,'admin-notes',id+'.json'),'utf8'));}catch(e){if(e.code==='ENOENT')return {status:'new',notes:''};throw e;}}
+const idOk=id=>/^FP-[A-Z0-9]+-[A-F0-9]{10}$/.test(id);
 const allowedStatuses=['new','reviewed','scheduled','completed'];
 async function adminRoute(req,res,url){
  if(!url.pathname.startsWith(BASE))return false;
