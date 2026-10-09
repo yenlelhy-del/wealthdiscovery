@@ -1,21 +1,37 @@
 'use strict';
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),http=require('node:http'),{spawn}=require('node:child_process');
-const dir=fs.mkdtempSync(path.join(os.tmpdir(),'fp-dashboard-test-'));fs.chmodSync(dir,0o700);
-const port=34000+Math.floor(Math.random()*2000),password='TestPassword-Only-NotProduction!',salt=crypto.randomBytes(16);
-const hash='scrypt:'+salt.toString('hex')+':'+crypto.scryptSync(password,salt,64).toString('hex');
-const recordId='FP-TEST123-ABCDEF1234';
-fs.writeFileSync(path.join(dir,recordId+'.json'),JSON.stringify({id:recordId,submittedAt:new Date().toISOString(),answers:{name:'Synthetic Customer',email:'test@example.invalid',goals:['Test goal']}}),{mode:0o600});
-const child=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,ADMIN_USERNAME:'admin',ADMIN_PASSWORD_SCRYPT:hash,ADMIN_SESSION_SECRET:crypto.randomBytes(32).toString('hex')},stdio:'ignore'});
-const base='http://127.0.0.1:'+port;
-async function fetchUntilReady(){for(let i=0;i<80;i++){try{const r=await fetch(base+'/wealth-discovery/health');if(r.ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('Server not ready');}
-test('single-admin dashboard security and notes workflow',async()=>{try{await fetchUntilReady();
- let r=await fetch(base+'/wealth-discovery/admin/api/records');assert.equal(r.status,401);
- r=await fetch(base+'/wealth-discovery/admin/');assert.equal(r.status,200);
- r=await fetch(base+'/wealth-discovery/admin/api/login',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://finpeace.cloud'},body:JSON.stringify({username:'admin',password:'wrong'})});assert.equal(r.status,401);
- r=await fetch(base+'/wealth-discovery/admin/api/login',{method:'POST',headers:{'Content-Type':'application/json','Origin':'https://finpeace.cloud'},body:JSON.stringify({username:'admin',password})});assert.equal(r.status,200);const cookie=r.headers.get('set-cookie').split(';')[0],body=await r.json();assert.ok(body.csrf);
- r=await fetch(base+'/wealth-discovery/admin/api/records',{headers:{Cookie:cookie}});assert.equal(r.status,200);assert.equal((await r.json()).records[0].name,'Synthetic Customer');
- r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({status:'reviewed',notes:'Test'})});assert.equal(r.status,403);
- r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json','X-CSRF-Token':body.csrf,Origin:'https://finpeace.cloud'},body:JSON.stringify({status:'reviewed',notes:'Test'})});assert.equal(r.status,200);
- r=await fetch(base+'/wealth-discovery/admin/api/records/'+recordId,{headers:{Cookie:cookie}});assert.equal((await r.json()).review.status,'reviewed');
- console.log('PASS: unauthorized access blocked; login; list/detail; CSRF blocked; notes saved.');
-}finally{child.kill('SIGTERM');fs.rmSync(dir,{recursive:true,force:true});}});
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto'),{spawn,execFileSync}=require('node:child_process');
+test('setup link, email login, protected data, CSRF and password change',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'finpeace-admin-'));fs.chmodSync(dir,0o700);
+ const id='FP-TEST123-ABCDEF1234';
+ fs.writeFileSync(path.join(dir,id+'.json'),JSON.stringify({id,submittedAt:new Date().toISOString(),answers:{name:'TEST ONLY'}}));
+ let child;
+ try{
+ const linkOutput=execFileSync(process.execPath,['scripts/create-admin-setup-link.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,DATA_DIR:dir},encoding:'utf8'});
+ const setupToken=linkOutput.split('setup=')[1].split('\n')[0].trim();
+ assert.ok(setupToken.length>30);
+ const port=36000+Math.floor(Math.random()*1500),base='http://127.0.0.1:'+port+'/wealth-discovery/admin/api';
+ child=spawn(process.execPath,['server.js'],{cwd:path.join(__dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,ADMIN_SESSION_SECRET:crypto.randomBytes(48).toString('hex'),NODE_ENV:'test'},stdio:'ignore'});
+ let ready=false;for(let i=0;i<70;i++){try{const r=await fetch('http://127.0.0.1:'+port+'/wealth-discovery/health');if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}
+ assert.equal(ready,true);
+ const post=(url,data,headers={})=>fetch(base+url,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(data)});
+ assert.equal((await fetch(base+'/records')).status,401);
+ const password='TestOnly_2026_Strong_Account_Password';
+ assert.equal((await post('/setup',{token:setupToken,password})).status,200);
+ assert.equal((await post('/setup',{token:setupToken,password})).status,400);
+ assert.equal((await post('/login',{email:'notadmin@example.test',password})).status,401);
+ let res=await post('/login',{email:'yenle.lhy@gmail.com',password});assert.equal(res.status,200);
+ const session=await res.json(),cookie=res.headers.get('set-cookie').split(';')[0];
+ assert.equal((await fetch(base+'/records',{headers:{Cookie:cookie}})).status,200);
+ const detail=await fetch(base+'/records/'+id,{headers:{Cookie:cookie}});
+ assert.equal(detail.status,200,'client profile must load');
+ assert.equal((await detail.json()).record.answers.name,'TEST ONLY');
+ const save=await fetch(base+'/records/'+id,{method:'PATCH',headers:{Cookie:cookie,'Content-Type':'application/json','X-CSRF-Token':session.csrf},body:JSON.stringify({status:'reviewed',notes:'Synthetic coach note'})});
+ assert.equal(save.status,200,'coach notes must save');
+ assert.equal((await post('/change-password',{currentPassword:password,newPassword:'A_New_Strong_Password_2026'}, {Cookie:cookie})).status,403);
+ assert.equal((await post('/change-password',{currentPassword:password,newPassword:'A_New_Strong_Password_2026'}, {Cookie:cookie,'X-CSRF-Token':session.csrf})).status,200);
+ assert.equal((await fetch(base+'/records',{headers:{Cookie:cookie}})).status,401);
+ assert.equal((await post('/login',{email:'yenle.lhy@gmail.com',password})).status,401);
+ assert.equal((await post('/login',{email:'yenle.lhy@gmail.com',password:'A_New_Strong_Password_2026'})).status,200);
+ console.log('PASS: email login, single-use setup, protected records, CSRF, password change and cookie revocation');
+ }finally{if(child)child.kill('SIGTERM');fs.rmSync(dir,{recursive:true,force:true});}
+});
