@@ -34,8 +34,9 @@ document.getElementById('next').onclick=()=>{if(!validPage())return;notice('',fa
 document.getElementById('back').onclick=()=>{notice('',false);at--;render();};
 for(const g of document.querySelectorAll('[data-max]'))g.addEventListener('change',e=>{const max=Number(g.dataset.max);if(g.querySelectorAll('input:checked').length>max){e.target.checked=false;notice('Bạn chỉ được chọn tối đa '+max+' mục.',true);}});
 form.addEventListener('submit',async e=>{e.preventDefault();if(!form.elements.consent.checked){notice('Vui lòng đọc và xác nhận chính sách quyền riêng tư.',true);return;}const b=document.getElementById('send');b.disabled=true;b.textContent='Đang gửi...';try{const res=await fetch('/wealth-discovery/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});const d=await res.json();if(!res.ok||!d.ok)throw Error(d.message||'Gửi không thành công');form.innerHTML='<div class="success"><h2>Cảm ơn bạn đã chia sẻ!</h2><p>FinPeace đã nhận hồ sơ. Mã xác nhận: <strong>'+d.reference+'</strong></p><p>Chúng tôi sẽ sử dụng thông tin để chuẩn bị cuộc gặp.</p></div>';localStorage.removeItem('finpeace-wealth-discovery-draft');}catch(err){notice(err.message,true);}finally{b.disabled=false;b.textContent='Gửi thông tin';}});
-let timer;form.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>{try{localStorage.setItem('finpeace-wealth-discovery-draft',JSON.stringify(payload()));}catch{}},500)});
-try{const d=JSON.parse(localStorage.getItem('finpeace-wealth-discovery-draft')||'null');if(d)for(const [key,v] of Object.entries(d)){const els=form.querySelectorAll('[name="'+key+'"]');for(const el of els){if(el.type==='checkbox'||el.type==='radio')el.checked=Array.isArray(v)?v.includes(el.value):v===el.value;else if(el.name!=='website')el.value=typeof v==='string'?v:'';}}}catch{}
+// Privacy: every visit starts with an empty questionnaire.
+try{localStorage.removeItem('finpeace-wealth-discovery-draft');}catch{}
+
 render();
 })();
 </script></body></html>
