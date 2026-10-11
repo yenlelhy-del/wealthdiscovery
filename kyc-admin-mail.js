@@ -1,6 +1,6 @@
 'use strict';
 const https=require('node:https');
-const ADMIN_EMAIL='yenle.lhy@gmail.com';
+const ADMIN_EMAILS=['yenle.lhy@gmail.com','yenle@finpeace.vn'];
 function config(){return {host:process.env.KYC_SMTP_HOST,port:process.env.KYC_SMTP_PORT,user:process.env.KYC_SMTP_USER,pass:process.env.KYC_SMTP_PASS,from:process.env.KYC_MAIL_FROM};}
 function configured(){const c=config();return !!(c.host&&c.port&&c.user&&c.pass&&c.from);}
 function notice(record){
@@ -8,7 +8,7 @@ function notice(record){
  const id=record.id;
  const dashboard='https://finpeace.cloud/wealth-discovery/admin/';
  return {
-  to:ADMIN_EMAIL,
+  to:ADMIN_EMAILS,
   subject:'FinPeace | Hồ sơ Wealth Discovery mới — '+id,
   text:'FinPeace vừa nhận một hồ sơ Wealth Discovery mới.\n\nKhách hàng: '+name+'\nMã hồ sơ: '+id+'\nThời điểm: '+record.submittedAt+'\n\nĐăng nhập Coach Dashboard để xem toàn bộ thông tin tài chính, mục tiêu và kỳ vọng khách hàng:\n'+dashboard+'\n\nĐể bảo vệ dữ liệu khách hàng, hồ sơ tài chính đầy đủ không được gửi dưới dạng email.'
  };
