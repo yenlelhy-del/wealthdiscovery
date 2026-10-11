@@ -1,7 +1,7 @@
 name: Dashboard checks
 on:
   push:
-    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, fix/kyc-blank-form-production, feature/kyc-admin-notification]
+    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, fix/kyc-blank-form-production, feature/kyc-admin-notification, feature/admin-password-recovery]
   pull_request:
     branches: [main, feature/coach-dashboard]
 jobs:
@@ -22,4 +22,4 @@ jobs:
           node --check simple-auth.js
           node --check scripts/create-admin-setup-link.js
       - name: Functional security tests
-        run: node --test test/dashboard.test.js test/blank-form.test.js test/admin-mail.test.js
+        run: node --test test/dashboard.test.js test/blank-form.test.js test/admin-mail.test.js test/password-recovery.test.js

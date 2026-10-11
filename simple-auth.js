@@ -29,7 +29,7 @@ async function authRoute(req,res,url){
  const p=url.pathname;
  if(!p.startsWith(BASE+'/api/'))return false;
  const action=p.slice((BASE+'/api/').length);
- if(['setup','login','change-password','logout'].includes(action)&&req.method==='POST'&&!originOK(req)){send(res,403,{ok:false,error:'Nguồn yêu cầu không hợp lệ'});return true;}
+ if(['setup','login','change-password','logout','forgot-password','reset-password'].includes(action)&&req.method==='POST'&&!originOK(req)){send(res,403,{ok:false,error:'Nguồn yêu cầu không hợp lệ'});return true;}
  if(action==='setup'&&req.method==='POST'){
   if(!throttle('setup',10,3600000)){send(res,429,{ok:false,error:'Thử lại sau'});return true;}
   let d;try{d=await parse(req);}catch{send(res,400,{ok:false,error:'Dữ liệu không hợp lệ'});return true;}
@@ -40,6 +40,38 @@ async function authRoute(req,res,url){
    if(validHash(a.passwordHash)||!a.setupHash||a.setupExpiry<Date.now()||!equal(hashToken(d.token),a.setupHash)){send(res,400,{ok:false,error:'Liên kết kích hoạt không hợp lệ hoặc đã hết hạn'});return true;}
    await saveAccount({version:(a.version||0)+1,email:EMAIL,passwordHash:encodePassword(d.password),updatedAt:new Date().toISOString()});
    send(res,200,{ok:true});return true;
+  }finally{busy=false;}
+ }
+ if(action==='forgot-password'&&req.method==='POST'){
+  let d;try{d=await parse(req);}catch{send(res,400,{ok:false,error:'Dữ liệu không hợp lệ'});return true;}
+  const message='Nếu email hợp lệ, liên kết đặt lại mật khẩu sẽ được gửi trong ít phút.';
+  if(!throttle('forgot',3,3600000)||typeof d.email!=='string'||d.email.trim().toLowerCase()!==EMAIL){send(res,200,{ok:true,message});return true;}
+  if(busy){send(res,200,{ok:true,message});return true;}busy=true;
+  try{
+   const a=await readAccount();
+   if(validHash(a.passwordHash)&&secret.length>=32&&process.env.KYC_SMTP_HOST&&process.env.KYC_SMTP_USER&&process.env.KYC_SMTP_PASS&&process.env.KYC_MAIL_FROM){
+    const token=crypto.randomBytes(32).toString('base64url');
+    const link='https://finpeace.cloud/wealth-discovery/admin/?reset='+encodeURIComponent(token);
+    const nodemailer=require('nodemailer');
+    const transport=nodemailer.createTransport({host:process.env.KYC_SMTP_HOST,port:Number(process.env.KYC_SMTP_PORT||465),secure:Number(process.env.KYC_SMTP_PORT||465)===465,auth:{user:process.env.KYC_SMTP_USER,pass:process.env.KYC_SMTP_PASS},connectionTimeout:7000,socketTimeout:7000});
+    await transport.sendMail({from:process.env.KYC_MAIL_FROM,to:EMAIL,subject:'FinPeace | Đặt lại mật khẩu Admin',text:'Bạn đã yêu cầu đặt lại mật khẩu Coach Dashboard. Liên kết có hiệu lực 15 phút, chỉ sử dụng một lần:\\n'+link+'\\n\\nNếu không yêu cầu, hãy bỏ qua email này.'});
+    await saveAccount({...a,resetHash:hashToken(token),resetExpiry:Date.now()+15*60*1000});
+   }
+  }catch(e){console.error('Admin password recovery mail failed:',e.message);}
+  finally{busy=false;}
+  send(res,200,{ok:true,message});return true;
+ }
+ if(action==='reset-password'&&req.method==='POST'){
+  if(!throttle('reset-password',8,3600000)){send(res,429,{ok:false,error:'Thử lại sau'});return true;}
+  let d;try{d=await parse(req);}catch{send(res,400,{ok:false,error:'Dữ liệu không hợp lệ'});return true;}
+  if(typeof d.token!=='string'||d.token.length>180||typeof d.password!=='string'||d.password.length<16||d.password.length>128){send(res,400,{ok:false,error:'Mật khẩu mới phải có 16–128 ký tự'});return true;}
+  if(busy){send(res,409,{ok:false,error:'Vui lòng thử lại'});return true;}busy=true;
+  try{
+   const a=await readAccount();
+   if(!a.resetHash||!a.resetExpiry||a.resetExpiry<Date.now()||!equal(hashToken(d.token),a.resetHash)){send(res,400,{ok:false,error:'Liên kết không hợp lệ hoặc hết hạn'});return true;}
+   const {resetHash,resetExpiry,...rest}=a;
+   await saveAccount({...rest,email:EMAIL,version:(a.version||0)+1,passwordHash:encodePassword(d.password),updatedAt:new Date().toISOString()});
+   send(res,200,{ok:true,message:'Đã đặt lại mật khẩu. Vui lòng đăng nhập.'});return true;
   }finally{busy=false;}
  }
  if(action==='login'&&req.method==='POST'){
