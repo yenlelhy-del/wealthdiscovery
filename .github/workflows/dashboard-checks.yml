@@ -1,7 +1,7 @@
 name: Dashboard checks
 on:
   push:
-    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, feature/kyc-customer-receipt]
+    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, feature/kyc-customer-receipt, fix/kyc-no-persistent-draft]
   pull_request:
     branches: [main, feature/coach-dashboard, feature/simple-admin-onboarding]
 jobs:
@@ -22,4 +22,4 @@ jobs:
           node --check simple-auth.js
           node --check scripts/create-admin-setup-link.js
       - name: Functional security tests
-        run: node --test test/dashboard.test.js test/receipt.test.js
+        run: node --test test/dashboard.test.js test/receipt.test.js test/privacy-form.test.js
