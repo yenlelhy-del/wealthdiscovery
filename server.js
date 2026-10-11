@@ -4,6 +4,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const {adminRoute}=require('./admin');
+const {sendAdminNotice}=require('./kyc-admin-mail');
 const PORT=Number(process.env.PORT||3101);
 const DATA_DIR=process.env.DATA_DIR||'/var/lib/finpeace-wealth-discovery';
 const BASE='/wealth-discovery/';
@@ -34,8 +35,10 @@ async function app(req,res){
     for(const [k,v] of Object.entries(d)){if(!allowed.has(k))return error(res,400,'Trường dữ liệu không hợp lệ');if(Array.isArray(v)){if(v.length>15||!v.every(x=>typeof x==='string'&&x.length<250))return error(res,400,'Dữ liệu không hợp lệ');}else if(typeof v!=='string'&&typeof v!=='boolean')return error(res,400,'Dữ liệu không hợp lệ');else if(typeof v==='string'&&v.length>2200)return error(res,400,'Trường quá dài');}
     if((d.goals||[]).length>3||(d.concerns||[]).length>2||(d.expectations||[]).length>2)return error(res,400,'Quá số lựa chọn');
     const id='FP-'+Date.now().toString(36).toUpperCase()+'-'+crypto.randomBytes(5).toString('hex').toUpperCase();
-    try{await fs.writeFile(path.join(DATA_DIR,id+'.json'),JSON.stringify({id,submittedAt:new Date().toISOString(),answers:d},null,2),{flag:'wx',mode:0o600});}
+    const record={id,submittedAt:new Date().toISOString(),answers:d};
+    try{await fs.writeFile(path.join(DATA_DIR,id+'.json'),JSON.stringify(record,null,2),{flag:'wx',mode:0o600});}
     catch(e){console.error('KYC storage error:',e.code);return error(res,500,'Chưa thể lưu hồ sơ');}
+    try{const status=await sendAdminNotice(record);if(status!=='sent')console.warn('Admin notification:',status);}catch(e){console.error('Admin notification failed:',e.message);}
     return json(res,201,{ok:true,reference:id});
   }
   if(!['GET','HEAD'].includes(req.method))return error(res,405,'Method không hỗ trợ');
