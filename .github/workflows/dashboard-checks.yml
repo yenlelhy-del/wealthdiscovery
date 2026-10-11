@@ -1,7 +1,7 @@
 name: Dashboard checks
 on:
   push:
-    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, fix/kyc-blank-form-production]
+    branches: [feature/coach-dashboard, feature/simple-admin-onboarding, fix/kyc-blank-form-production, feature/kyc-admin-notification]
   pull_request:
     branches: [main, feature/coach-dashboard]
 jobs:
@@ -12,11 +12,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
       - name: Syntax
         run: |
           node --check server.js
           node --check admin.js
+          node --check kyc-admin-mail.js
           node --check simple-auth.js
           node --check scripts/create-admin-setup-link.js
       - name: Functional security tests
-        run: node --test test/dashboard.test.js test/blank-form.test.js
+        run: node --test test/dashboard.test.js test/blank-form.test.js test/admin-mail.test.js
